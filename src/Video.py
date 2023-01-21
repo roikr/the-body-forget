@@ -13,6 +13,7 @@ import numpy as np
 class Texture:
     def __init__(self,ctx,size,channels,location,prog,tex_name):
         self.size=size
+        self.location=location
         self.channels=channels
         self.tex = ctx.texture(size,channels,dtype='u1')
         self.tex.repeat_x = False
@@ -30,53 +31,56 @@ class VideoTexture(Texture):
         super().__init__(*args)
         
         self.load(np.zeros((*self.size,self.channels),dtype='u1'))
-        self.repeat=False
+        self.repeat=True if video else False
         self.q=queue.Queue()
         self.frame_q=queue.Queue()
+        self.status_q=queue.Queue()
 
-        self.worker = threading.Thread(target=self.startThread,args=(self.q,self.frame_q,),daemon=True)
+        self.worker = threading.Thread(target=self.startThread,args=(self.q,self.frame_q,self.status_q,),daemon=True)
         self.worker.start()
+        self.is_playing_=False
 
         if video:
-            self.repeat=True
             self.play(video,True)
 
     def play(self,video,now):
         # print(f'start play: {video}, now: {now}')
         self.q.put((video,now))
         
+    def stop(self):
+        self.q.put(None,True)
     
-    def startThread(self,q,frame_q):
+    def startThread(self,q,frame_q,status_q,):
         reader=None
-        list=[]
-        push=False
+        next_video=None
+        immediately=False
         while True:
             try:
-                video,now=q.get(False)
-                list.append(video)
-                if now:
-                    push=True
+                next_video,immediately=q.get(False)
                 
             except queue.Empty:
                 pass
 
-            if push or (reader==None and len(list)):
-                if self.repeat:
-                    next_video=list[0]
-                else:
-                    next_video=list.pop() if push else list.pop(0)
-
-                push=False
+            if immediately or (reader==None and next_video):
+                immediately = False
 
                 if reader!=None:
                     reader.close()
-                
-                print(f'playing: {next_video}')
-                reader=skvideo.io.FFmpegReader(next_video,outputdict={'-c:v':'h264_videotoolbox'})
-                gen=reader.nextFrame()
-                
-                start=time.time()
-                counter=-1
+
+                if next_video:
+                    print(f'vid {self.location} start playing: {next_video}')
+                    reader=skvideo.io.FFmpegReader(next_video,outputdict={'-c:v':'h264_videotoolbox'})
+                    status_q.put(True)
+                    if not self.repeat:
+                        next_video=None
+
+                    gen=reader.nextFrame()
+                    
+                    start=time.time()
+                    counter=-1
+
+                else:
+                    status_q.put(False)
 
             if reader:
                 if 30*(time.time()-start)>counter:
@@ -87,6 +91,7 @@ class VideoTexture(Texture):
                         frame_q.put(np.zeros((*self.size,self.channels),dtype='u1'))
                         reader.close()
                         reader=None
+                        status_q.put(False)
                     
             time.sleep(0.0001)
             
@@ -101,13 +106,19 @@ class VideoTexture(Texture):
                 else:
                     self.load(frame[:,:,0])
                     
-                        
         except queue.Empty:
             pass
 
+        try:
+            self.is_playing_=self.status_q.get(False)
+            print(f'vid {self.location} playing status changed: {self.is_playing_}')
+        except:
+            queue.Empty
+
+    def is_playing(self):
+        return self.is_playing_
+
         
-
-
 class VideoRecorder:
     def __init__(self,size):
         self.size=size
