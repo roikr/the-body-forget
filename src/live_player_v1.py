@@ -49,7 +49,8 @@ class QuadFullscreen:
         settings.WINDOW['class'] = 'moderngl_window.context.glfw.Window'
         settings.WINDOW['size'] = self.view_size
         settings.WINDOW['aspect_ratio'] = w/h
-        # settings.WINDOW['fullscreen'] = True
+        settings.WINDOW['fullscreen'] = True
+        settings.WINDOW['cursor'] = False
         self.wnd = moderngl_window.create_window_from_settings()
         self.ctx = self.wnd.ctx
         self.quad = geometry.quad_fs()

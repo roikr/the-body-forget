@@ -55,6 +55,7 @@ class VideoTexture(Texture):
         next_video=None
         immediately=False
         while True:
+            # print(f'{self.location} {frame_q.qsize()}')
             try:
                 next_video,immediately=q.get(False)
                 
@@ -66,10 +67,11 @@ class VideoTexture(Texture):
 
                 if reader!=None:
                     reader.close()
+                    reader=None
 
                 if next_video:
                     print(f'vid {self.location} start playing: {next_video}')
-                    reader=skvideo.io.FFmpegReader(next_video,outputdict={'-c:v':'h264_videotoolbox'})
+                    reader=skvideo.io.FFmpegReader(next_video) #,outputdict={'-c:v':'libx264'})
                     status_q.put(True)
                     if not self.repeat:
                         next_video=None
@@ -86,34 +88,40 @@ class VideoTexture(Texture):
                 if 30*(time.time()-start)>counter:
                     counter+=1
                     try:
-                        frame_q.put(next(gen))
+                        # start_read=time.time()
+                        frame=next(gen)
+                        # print(f'{1000*(time.time()-start_read):.0f}')
+                        frame_q.put(frame)
+                        
                     except StopIteration:
                         frame_q.put(np.zeros((*self.size,self.channels),dtype='u1'))
                         reader.close()
                         reader=None
                         status_q.put(False)
-                    
-            time.sleep(0.0001)
+            time.sleep(0.02)
             
             
 
     def update(self):
+       
         try:
-            frame= self.frame_q.get(False)
+            
+            frame=None
+            while True: # drop frames ensure queue not inflate
+                frame = self.frame_q.get(False)   
+
+        except queue.Empty:
             if type(frame)!=type(None):
                 if self.channels==3:
                     self.load(frame)
                 else:
                     self.load(frame[:,:,0])
-                    
-        except queue.Empty:
-            pass
-
+            
         try:
             self.is_playing_=self.status_q.get(False)
             print(f'vid {self.location} playing status changed: {self.is_playing_}')
-        except:
-            queue.Empty
+        except queue.Empty:
+            pass
 
     def is_playing(self):
         return self.is_playing_
@@ -124,38 +132,43 @@ class VideoRecorder:
         self.size=size
         self.q=queue.Queue()
         self.frame_q=queue.Queue()
-        self.worker = threading.Thread(target=self.startThread,args=(self.q,self.frame_q,),daemon=True)
+        self.status_q=queue.Queue()
+        self.worker = threading.Thread(target=self.startThread,args=(self.q,self.frame_q,self.status_q,),daemon=True)
         self.worker.start()
+        self.path=None
+        self.is_recording_=False
         
 
-    def startThread(self,q,frame_q):
+    def startThread(self,q,frame_q,status_q):
         options={'-c:v':'libx264','-r':'30','-crf':'0'}
         record=False
 
         while True:
-            try:
-                frame=frame_q.get(False)
-                if record:
-                    writer.writeFrame(frame)
-            except queue.Empty:
-                pass
-
             try:
                 msg,path=q.get(False)
                 
                 if msg:
                     writer=skvideo.io.FFmpegWriter(path,outputdict=options)
                     record=True
+                    status_q.put(True)
                 else:
                     if record:
                         writer.close()
+                        status_q.put(False)
 
                     record=False
 
             except queue.Empty:
                 pass
+
+            try:
+                frame=frame_q.get(False)        
+                if record:
+                    writer.writeFrame(frame)
+            except queue.Empty:
+                pass
             
-            time.sleep(0.0001)
+            time.sleep(0.01)
     
     def start(self,path):
         self.q.put((True,path))
@@ -163,7 +176,18 @@ class VideoRecorder:
     def stop(self):
         self.q.put((False,None))
 
-    def update(self,frame):
+    def add_frame(self,frame):
         self.frame_q.put(frame)
+
+    def update(self,frame=None):
+        try:
+            self.is_recording_=self.status_q.get(False)
+            print(f'recording status changed: {self.is_recording_}')
+        
+        except queue.Empty:
+            pass
+
+    def is_recording(self):
+        return self.is_recording_
 
 
