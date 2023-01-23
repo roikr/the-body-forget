@@ -28,11 +28,11 @@ class DepthCamera(Texture):
         self.bg_depth=np.empty((self.counter,h,w),dtype=np.uint16)
         
         self.d_res=0.00025
-        self.d_min=int(0.2/self.d_res)
-        self.d_max=int(1./self.d_res)
+        self.d_min=int(2/self.d_res)
+        self.d_max=int(3/self.d_res)
         self.min_area=10000
         self.kernel=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(3,3))
-        self.d_trigger=int(4/self.d_res)
+        self.d_trigger=int(3/self.d_res)
         self.capturing_duration=10
         self.playback_duration=10
         self.start=time.time()

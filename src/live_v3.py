@@ -39,10 +39,15 @@ fragment_shader="""
     in vec2 uv0;
 
     void main() {
-        vec2 q=(vec2(1.)-uv0);
+        vec2 q=vec2(uv0.x,1.-uv0.y);
         ivec2 p=ivec2(q*view_size);
         vec2 cam_pos=vec2(q.x,q.y*cam_size.y/cam_size.x+float(view_size.y-cam_size.y)/view_size.y);
         
+        float dy=float(view_size.x)/cam_size.x*cam_size.y-view_size.y;
+        vec2 pos=vec2(p.x,p.y+dy);
+        vec2 cam_win=vec2(view_size.x,view_size.y/cam_size.y*cam_size.x);
+        cam_pos=pos/cam_win;
+
         float c0=texture(tex0,cam_pos).x/255.;
         vec3 c1=texture(tex1, vec2(p)/tex_size).xyz/255.;
         float c2=texture(tex2,cam_pos).x/255.;
@@ -144,7 +149,7 @@ class QuadFullscreen:
         [v.update() for v in self.tex_players]
         [v.update() for v in self.vid_players]
 
-        if self.cam.is_ready():
+        if self.cam.is_ready() and not self.cam.is_capturing():
             # for v in self.vid_players:
             #     if not v.is_playing():
             #         v.play(f'videos/{np.random.choice(self.videos)}',False) 
@@ -168,6 +173,9 @@ class QuadFullscreen:
                 self.current_start=time.time()
                 print(f'start recording: {self.current_video}')
                 self.rec.start(f'videos/{self.current_video}')
+                self.vid2.stop()
+                self.vid4.stop()
+                self.vid6.stop()
                 subprocess.Popen(['aplay',f'sounds/{np.random.choice(self.sounds)}'])
             else:
                 self.current_stop=time.time()
@@ -213,6 +221,7 @@ class QuadFullscreen:
 
 if __name__ == '__main__':
     app=QuadFullscreen((1920,1080))
+    # app=QuadFullscreen((1365,768))
     # app=QuadFullscreen((1024,768))
     app.run()
     

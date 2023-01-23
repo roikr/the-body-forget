@@ -48,7 +48,7 @@ class VideoTexture(Texture):
         self.q.put((video,now))
         
     def stop(self):
-        self.q.put(None,True)
+        self.q.put((None,True))
     
     def startThread(self,q,frame_q,status_q,):
         reader=None
@@ -82,6 +82,7 @@ class VideoTexture(Texture):
                     counter=-1
 
                 else:
+                    frame_q.put(np.zeros((*self.size,self.channels),dtype='u1'))
                     status_q.put(False)
 
             if reader:
