@@ -86,11 +86,12 @@ class VideoTexture(Texture):
                     status_q.put(False)
 
             if reader:
-                if 30*(time.time()-start)>counter:
-                    counter+=1
+                if 30.*(time.time()-start)>float(counter):
+                    
                     try:
                         # start_read=time.time()
                         frame=next(gen)
+                        counter+=1
                         # print(f'{1000*(time.time()-start_read):.0f}')
                         frame_q.put(frame)
                         
@@ -169,7 +170,7 @@ class VideoRecorder:
             except queue.Empty:
                 pass
             
-            time.sleep(0.01)
+            time.sleep(0.02)
     
     def start(self,path):
         self.q.put((True,path))

@@ -25,6 +25,7 @@ vertex_shader="""
 fragment_shader="""
     #version 330
     out vec4 fragColor;
+    uniform usampler2D bg;
     uniform usampler2D tex0; 
     uniform usampler2D tex1;
     uniform usampler2D tex2;
@@ -39,29 +40,42 @@ fragment_shader="""
     in vec2 uv0;
 
     void main() {
-        vec2 q=vec2(uv0.x,1.-uv0.y);
+        vec2 q=vec2(1.-uv0.x,uv0.y);
         ivec2 p=ivec2(q*view_size);
-        vec2 cam_pos=vec2(q.x,q.y*cam_size.y/cam_size.x+float(view_size.y-cam_size.y)/view_size.y);
+        vec2 cam_pos; //=vec2(q.x,q.y*cam_size.y/cam_size.x+float(view_size.y-cam_size.y)/view_size.y);
         
         float dy=float(view_size.x)/cam_size.x*cam_size.y-view_size.y;
-        vec2 pos=vec2(p.x,p.y+dy);
-        vec2 cam_win=vec2(view_size.x,view_size.y/cam_size.y*cam_size.x);
+        vec2 pos=vec2(p.x,p.y);
+        vec2 cam_win=vec2(view_size.x,float(view_size.x)/cam_size.x*cam_size.y);
         cam_pos=pos/cam_win;
+        cam_pos.y=1.-cam_pos.y;
+        
 
         float c0=texture(tex0,cam_pos).x/255.;
         vec3 c1=texture(tex1, vec2(p)/tex_size).xyz/255.;
+        
         float c2=texture(tex2,cam_pos).x/255.;
         vec3 c3=texture(tex3, vec2(p)/tex_size).xyz/255.;
+        
         float c4=texture(tex4,cam_pos).x/255.;
         vec3 c5=texture(tex5, vec2(p)/tex_size).xyz/255.;
+        
         float c6=texture(tex6,cam_pos).x/255.;
         
         
         if (rec) {
+            if (c0==0) {
+                fragColor=vec4(vec3(0.25*texture(bg,q).x/255),1.0);
+            } else {
             fragColor = vec4(c0,0.0,0.0,1.0);
+            }
         } else {
-            if (c2*c4*c6>0) discard;
-            else if (c2*c4>0) {
+            if (c2*c4*c6>0) {
+                fragColor = vec4(vec3(0.0),1.0);
+            }
+            else if (c2+c4+c6==0) {
+                fragColor=vec4(vec3(0.25*texture(bg,q).x/255),1.0);
+            } else if (c2*c4>0) {
                 fragColor = vec4(c5*c6,1.0);
             } else if (c4*c6>0) {
                 fragColor = vec4(c1*c2,1.0);
@@ -69,6 +83,7 @@ fragment_shader="""
                 fragColor = vec4(c3*c4,1.0);
             } else {
                 fragColor = vec4(c1*c2+c3*c4+c5*c6,1.0);
+                //fragColor = vec4(vec3(c2+c4+c6),1.0);
             }    
         }
         
@@ -123,12 +138,18 @@ class QuadFullscreen:
         self.ctx = self.wnd.ctx
         self.quad = geometry.quad_fs()
         self.prog = self.ctx.program(vertex_shader=vertex_shader,fragment_shader=fragment_shader)
-        self.vid1=VideoTexture(self.ctx,self.tex_size,3,1,self.prog,'tex1',video='textures/1.mp4')
+        self.vid1=VideoTexture(self.ctx,self.tex_size,3,1,self.prog,'tex1',video='textures/10.mp4')
         self.vid2=VideoTexture(self.ctx,self.cam_size,1,2,self.prog,'tex2')
-        self.vid3=VideoTexture(self.ctx,self.tex_size,3,3,self.prog,'tex3',video='textures/3.mp4')
+        self.vid3=VideoTexture(self.ctx,self.tex_size,3,3,self.prog,'tex3',video='textures/11.mp4')
         self.vid4=VideoTexture(self.ctx,self.cam_size,1,4,self.prog,'tex4')
-        self.vid5=VideoTexture(self.ctx,self.tex_size,3,5,self.prog,'tex5',video='textures/4.mp4')
+        self.vid5=VideoTexture(self.ctx,self.tex_size,3,5,self.prog,'tex5',video='textures/12.mp4')
         self.vid6=VideoTexture(self.ctx,self.cam_size,1,6,self.prog,'tex6')
+        bg=cv2.imread('textures/bg.png',cv2.IMREAD_GRAYSCALE)
+        bg_size=bg.shape[::-1]
+        self.bg=Texture(self.ctx,bg_size,1,7,self.prog,'bg')
+        self.bg.load(bg)
+
+
         self.videos=[f for f in os.listdir('videos') if f.endswith('.mp4')]
         self.new_videos=[]
         self.tex_players=[self.vid1,self.vid3,self.vid5]
@@ -149,7 +170,7 @@ class QuadFullscreen:
         [v.update() for v in self.tex_players]
         [v.update() for v in self.vid_players]
 
-        if self.cam.is_ready() and not self.cam.is_capturing():
+        if self.cam.is_ready() and not self.cam.is_capturing() and len(self.videos):
             # for v in self.vid_players:
             #     if not v.is_playing():
             #         v.play(f'videos/{np.random.choice(self.videos)}',False) 
@@ -192,6 +213,9 @@ class QuadFullscreen:
                 print(f'append: {self.current_video}')
                 self.vid6.play(f'videos/{self.current_video}',True)
                 self.new_videos.append(self.current_video)
+                if len(self.videos)<10:
+                    self.videos.append(self.current_video)
+
             else:
                 print(f'remove: {self.current_video}')
                 os.remove(f'videos/{self.current_video}')
@@ -220,7 +244,7 @@ class QuadFullscreen:
 
 
 if __name__ == '__main__':
-    app=QuadFullscreen((1920,1080))
+    app=QuadFullscreen((1920,1200))
     # app=QuadFullscreen((1365,768))
     # app=QuadFullscreen((1024,768))
     app.run()

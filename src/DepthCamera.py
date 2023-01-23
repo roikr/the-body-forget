@@ -29,10 +29,10 @@ class DepthCamera(Texture):
         
         self.d_res=0.00025
         self.d_min=int(2/self.d_res)
-        self.d_max=int(3/self.d_res)
+        self.d_max=int(3.5/self.d_res)
         self.min_area=10000
         self.kernel=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(3,3))
-        self.d_trigger=int(3/self.d_res)
+        self.d_trigger=int(3.5/self.d_res)
         self.capturing_duration=10
         self.playback_duration=10
         self.start=time.time()
@@ -82,9 +82,6 @@ class DepthCamera(Texture):
                 bg_mask=np.abs(self.mean_depth-depth.astype('f'))>150
                 depth_mask=(depth>self.d_min) & (depth<self.d_max)
                 mask=conf_mask & (bg_mask | (~bg_mask & self.low_conf_mask)) & depth_mask
-                # M=np.block([[mask,conf_mask],[bg_mask,~bg_mask & bg_conf_mask]])
-                # h,w=depth.shape
-                # M=cv2.resize(255*M.astype('u1'),(w,h))
                 M=mask
                 I=M.astype('u1')
                 I=cv2.morphologyEx(I,cv2.MORPH_OPEN,self.kernel,iterations=3)
