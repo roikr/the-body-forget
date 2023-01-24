@@ -138,11 +138,11 @@ class QuadFullscreen:
         self.ctx = self.wnd.ctx
         self.quad = geometry.quad_fs()
         self.prog = self.ctx.program(vertex_shader=vertex_shader,fragment_shader=fragment_shader)
-        self.vid1=VideoTexture(self.ctx,self.tex_size,3,1,self.prog,'tex1',video='textures/10.mp4')
+        self.vid1=VideoTexture(self.ctx,self.tex_size,3,1,self.prog,'tex1',video='textures/20.mp4')
         self.vid2=VideoTexture(self.ctx,self.cam_size,1,2,self.prog,'tex2')
-        self.vid3=VideoTexture(self.ctx,self.tex_size,3,3,self.prog,'tex3',video='textures/11.mp4')
+        self.vid3=VideoTexture(self.ctx,self.tex_size,3,3,self.prog,'tex3',video='textures/21.mp4')
         self.vid4=VideoTexture(self.ctx,self.cam_size,1,4,self.prog,'tex4')
-        self.vid5=VideoTexture(self.ctx,self.tex_size,3,5,self.prog,'tex5',video='textures/12.mp4')
+        self.vid5=VideoTexture(self.ctx,self.tex_size,3,5,self.prog,'tex5',video='textures/22.mp4')
         self.vid6=VideoTexture(self.ctx,self.cam_size,1,6,self.prog,'tex6')
         bg=cv2.imread('textures/bg.png',cv2.IMREAD_GRAYSCALE)
         bg_size=bg.shape[::-1]
@@ -202,31 +202,31 @@ class QuadFullscreen:
             if self.cam.is_visible():
                 self.last_visible = time.time()
                 if not self.recording and not self.rec.is_recording() and (time.time()-self.play_time>self.playback_duration):
-                self.current_video=f'{time.strftime("%Y%m%d_%H%M%S")}.mp4'
+                    self.current_video=f'{time.strftime("%Y%m%d_%H%M%S")}.mp4'
                     self.record_time=time.time()
-                print(f'start recording: {self.current_video}')
-                self.rec.start(f'videos/{self.current_video}')
+                    print(f'start recording: {self.current_video}')
+                    self.rec.start(f'videos/{self.current_video}')
                     self.recording=True
-                self.vid2.stop()
-                self.vid4.stop()
-                self.vid6.stop()
-                subprocess.Popen(['aplay',f'sounds/{np.random.choice(self.sounds)}'])
+                    self.vid2.stop()
+                    self.vid4.stop()
+                    self.vid6.stop()
+                    subprocess.Popen(['aplay',f'sounds/{np.random.choice(self.sounds)}'])
 
             if self.recording and ((time.time()-self.last_visible>0.5) or (time.time()-self.record_time>self.recording_duration)):
                 print(f'stop recording: {self.current_video}')
                 self.rec.stop()
-                    self.recording=False
+                self.recording=False
                 
             if self.rec.is_recording() and self.recording and type(frame)!=type(None):
-            self.rec.add_frame(frame)
+                self.rec.add_frame(frame)
 
         recording=self.rec.is_recording()
         self.rec.update()
         if recording and not self.rec.is_recording():
-                if (time.time()-self.record_time)>self.minimum_recording:
+            if (time.time()-self.record_time)>self.minimum_recording:
                 print(f'append: {self.current_video}')
                 self.vid6.play(f'videos/{self.current_video}',True)
-                    self.play_time=time.time()
+                self.play_time=time.time()
                 self.new_videos.append(self.current_video)
                 if len(self.videos)<10:
                     self.videos.append(self.current_video)
