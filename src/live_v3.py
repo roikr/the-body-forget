@@ -52,13 +52,13 @@ fragment_shader="""
         
 
         float c0=texture(tex0,cam_pos).x/255.;
-        vec3 c1=texture(tex1, vec2(p)/tex_size).xyz/255.;
+        vec3 c1=texture(tex1, vec2(p)/tex_size).xyz/255.*1.2;
         
         float c2=texture(tex2,cam_pos).x/255.;
-        vec3 c3=texture(tex3, vec2(p)/tex_size).xyz/255.;
+        vec3 c3=texture(tex3, vec2(p)/tex_size).xyz/255.*1.2;
         
         float c4=texture(tex4,cam_pos).x/255.;
-        vec3 c5=texture(tex5, vec2(p)/tex_size).xyz/255.;
+        vec3 c5=texture(tex5, vec2(p)/tex_size).xyz/255.*1.2;
         
         float c6=texture(tex6,cam_pos).x/255.;
         
@@ -67,7 +67,7 @@ fragment_shader="""
             if (c0==0) {
                 fragColor=vec4(vec3(0.25*texture(bg,q).x/255),1.0);
             } else {
-            fragColor = vec4(c0,0.0,0.0,1.0);
+                fragColor = vec4(c0,0.0,0.0,1.0);
             }
         } else {
             if (c2*c4*c6>0) {
@@ -76,13 +76,13 @@ fragment_shader="""
             else if (c2+c4+c6==0) {
                 fragColor=vec4(vec3(0.25*texture(bg,q).x/255),1.0);
             } else if (c2*c4>0) {
-                fragColor = vec4(c5*c6,1.0);
+                fragColor = vec4(vec3(0.,0.,1.2*c6*c5.z),1.0);
             } else if (c4*c6>0) {
                 fragColor = vec4(c1*c2,1.0);
             } else if (c6*c2>0) {
                 fragColor = vec4(c3*c4,1.0);
             } else {
-                fragColor = vec4(c1*c2+c3*c4+c5*c6,1.0);
+                fragColor = vec4(c1*c2+c3*c4+vec3(0.,0.,1.2*c6*c5.z),1.0);
                 //fragColor = vec4(vec3(c2+c4+c6),1.0);
             }    
         }
@@ -138,11 +138,11 @@ class QuadFullscreen:
         self.ctx = self.wnd.ctx
         self.quad = geometry.quad_fs()
         self.prog = self.ctx.program(vertex_shader=vertex_shader,fragment_shader=fragment_shader)
-        self.vid1=VideoTexture(self.ctx,self.tex_size,3,1,self.prog,'tex1',video='textures/20.mp4')
+        self.vid1=VideoTexture(self.ctx,self.tex_size,3,1,self.prog,'tex1',video='textures/21.mp4')
         self.vid2=VideoTexture(self.ctx,self.cam_size,1,2,self.prog,'tex2')
-        self.vid3=VideoTexture(self.ctx,self.tex_size,3,3,self.prog,'tex3',video='textures/21.mp4')
+        self.vid3=VideoTexture(self.ctx,self.tex_size,3,3,self.prog,'tex3',video='textures/22.mp4')
         self.vid4=VideoTexture(self.ctx,self.cam_size,1,4,self.prog,'tex4')
-        self.vid5=VideoTexture(self.ctx,self.tex_size,3,5,self.prog,'tex5',video='textures/22.mp4')
+        self.vid5=VideoTexture(self.ctx,self.tex_size,3,5,self.prog,'tex5',video='textures/20.mp4')
         self.vid6=VideoTexture(self.ctx,self.cam_size,1,6,self.prog,'tex6')
         bg=cv2.imread('textures/bg.png',cv2.IMREAD_GRAYSCALE)
         bg_size=bg.shape[::-1]
@@ -151,7 +151,6 @@ class QuadFullscreen:
 
 
         self.videos=[f for f in os.listdir('videos') if f.endswith('.mp4')]
-        self.new_videos=[]
         self.tex_players=[self.vid1,self.vid3,self.vid5]
         self.vid_players=[self.vid2,self.vid4,self.vid6]
 
@@ -187,12 +186,8 @@ class QuadFullscreen:
                 self.vid2.play(f'videos/{np.random.choice(self.videos)}',False) 
 
             if not self.vid4.is_playing():
-                video = np.random.choice(self.new_videos if len(self.new_videos) else  self.videos) 
-                self.vid4.play(f'videos/{video}',False) 
-
-            if not self.vid6.is_playing():
-                video = np.random.choice(self.new_videos[-5:] if len(self.new_videos) else  self.videos)
-                self.vid6.play(f'videos/{video}',False) 
+                self.vid4.play(f'videos/{np.random.choice(self.videos)}',False) 
+                
 
         is_visible=self.cam.is_visible() 
         
@@ -227,9 +222,7 @@ class QuadFullscreen:
                 print(f'append: {self.current_video}')
                 self.vid6.play(f'videos/{self.current_video}',True)
                 self.play_time=time.time()
-                self.new_videos.append(self.current_video)
-                if len(self.videos)<10:
-                    self.videos.append(self.current_video)
+                self.videos.append(self.current_video)
 
             else:
                 print(f'remove: {self.current_video}')
