@@ -33,21 +33,17 @@ class DepthCamera(Texture):
         self.min_area=10000
         self.kernel=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(3,3))
         self.d_trigger=int(3.5/self.d_res)
-        self.capturing_duration=10
-        self.playback_duration=10
-        self.start=time.time()
-        self.capturing=False
+        
+        
+        self.is_visible_=False
                
     def is_ready(self):
         return self.counter==0
 
-    def is_capturing(self):
-        return self.capturing
+    def is_visible(self):
+        return self.is_visible_
 
     def update(self):
-        
-        capturing=self.capturing
-
         frame=None
         frameset = self.pipeline.poll_for_frames() 
         if frameset: 
@@ -69,12 +65,6 @@ class DepthCamera(Texture):
                     self.mean_depth=self.bg_depth.mean(0)
                     self.low_conf_mask=self.med_conf<128
                     del self.bg_depth,self.bg_conf
-                    # self.std_depth=self.bg_depth.std(0)
-                    # del self.bg_conf,self.bg_depth
-                    # self.M_med_conf_16=(med_conf==16)
-                    # self.M_med_conf_bt_16=(med_conf>16)
-                   
-                    
            
             frame=np.zeros_like(depth,dtype='u1')
             if self.is_ready():
@@ -94,19 +84,11 @@ class DepthCamera(Texture):
                     C=cv2.fillPoly(np.zeros_like(depth,dtype='u1'),cntrs,(255),cv2.LINE_AA).astype('bool')
                     frame[M&C]=255*(1-(depth[M&C]-self.d_min)/(self.d_max-self.d_min))
 
-                    med=np.median(depth[M&C])
-                    if med<self.d_trigger and not self.capturing and time.time()-self.start>self.playback_duration:
-                        self.capturing=True
-                        self.start=time.time()
-
-                    if self.capturing and med>self.d_trigger:
-                        self.capturing=False
-                        self.start=time.time()
+                    self.is_visible_ = np.median(depth[M&C]) < self.d_trigger
                         
                 else:
-                    if self.capturing:
-                        self.capturing=False
-                        self.start=time.time()
+                    self.is_visible_=False
+                    
 
             else:
                 M=(conf>=128) & (depth>self.d_min) & (depth<self.d_max)
@@ -114,15 +96,6 @@ class DepthCamera(Texture):
             
             self.load(frame)
         
-        if self.capturing and time.time()-self.start>self.capturing_duration:
-            self.capturing=False
-            self.start=time.time()
-            
-
-        if capturing!=self.capturing:
-            
-            print(f'capturing status change: {self.capturing}')
-
         return frame
 
    

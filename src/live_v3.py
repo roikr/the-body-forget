@@ -166,11 +166,20 @@ class QuadFullscreen:
         self.prog['cam_size'].value=self.cam_size
         self.prog['rec'].value=False
         
+        self.recording_duration=10
+        self.playback_duration=10
+        self.minimum_recording=7
+
+        self.last_visible=time.time()
+        self.record_time=time.time()
+        self.play_time=time.time()
+        self.recording=False
+        
     def update(self):
         [v.update() for v in self.tex_players]
         [v.update() for v in self.vid_players]
 
-        if self.cam.is_ready() and not self.cam.is_capturing() and len(self.videos):
+        if self.cam.is_ready() and not self.rec.is_recording() and len(self.videos):
             # for v in self.vid_players:
             #     if not v.is_playing():
             #         v.play(f'videos/{np.random.choice(self.videos)}',False) 
@@ -185,33 +194,39 @@ class QuadFullscreen:
                 video = np.random.choice(self.new_videos[-5:] if len(self.new_videos) else  self.videos)
                 self.vid6.play(f'videos/{video}',False) 
 
-        capturing=self.cam.is_capturing() 
+        is_visible=self.cam.is_visible() 
+        
         frame=self.cam.update()
 
-        if capturing!=self.cam.is_capturing():
-            if self.cam.is_capturing():
+        if self.cam.is_ready():
+            if self.cam.is_visible():
+                self.last_visible = time.time()
+                if not self.recording and not self.rec.is_recording() and (time.time()-self.play_time>self.playback_duration):
                 self.current_video=f'{time.strftime("%Y%m%d_%H%M%S")}.mp4'
-                self.current_start=time.time()
+                    self.record_time=time.time()
                 print(f'start recording: {self.current_video}')
                 self.rec.start(f'videos/{self.current_video}')
+                    self.recording=True
                 self.vid2.stop()
                 self.vid4.stop()
                 self.vid6.stop()
                 subprocess.Popen(['aplay',f'sounds/{np.random.choice(self.sounds)}'])
-            else:
-                self.current_stop=time.time()
+
+            if self.recording and ((time.time()-self.last_visible>0.5) or (time.time()-self.record_time>self.recording_duration)):
                 print(f'stop recording: {self.current_video}')
                 self.rec.stop()
+                    self.recording=False
                 
-        if self.cam.is_capturing() and self.rec.is_recording() and type(frame)!=type(None):
+            if self.rec.is_recording() and self.recording and type(frame)!=type(None):
             self.rec.add_frame(frame)
 
         recording=self.rec.is_recording()
         self.rec.update()
         if recording and not self.rec.is_recording():
-            if self.current_stop-self.current_start>5:
+                if (time.time()-self.record_time)>self.minimum_recording:
                 print(f'append: {self.current_video}')
                 self.vid6.play(f'videos/{self.current_video}',True)
+                    self.play_time=time.time()
                 self.new_videos.append(self.current_video)
                 if len(self.videos)<10:
                     self.videos.append(self.current_video)
@@ -221,9 +236,8 @@ class QuadFullscreen:
                 os.remove(f'videos/{self.current_video}')
 
         
-                        
     def render(self, time_: float, frame_time: float):
-        self.prog['rec'].value=self.cam.is_capturing() or not self.cam.is_ready()
+        self.prog['rec'].value=self.recording or not self.cam.is_ready()
         self.ctx.clear()
         self.quad.render(self.prog)
 
@@ -245,7 +259,7 @@ class QuadFullscreen:
 
 if __name__ == '__main__':
     app=QuadFullscreen((1920,1200))
-    # app=QuadFullscreen((1365,768))
+    # app=QuadFullscreen((1280,800))
     # app=QuadFullscreen((1024,768))
     app.run()
     
