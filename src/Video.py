@@ -70,7 +70,7 @@ class VideoTexture(Texture):
                     reader=None
 
                 if next_video:
-                    print(f'vid {self.location} start playing: {next_video}')
+                    # print(f'vid {self.location} start playing: {next_video}')
                     reader=skvideo.io.FFmpegReader(next_video) #,outputdict={'-c:v':'libx264'})
                     status_q.put(True)
                     if not self.repeat:
@@ -121,7 +121,7 @@ class VideoTexture(Texture):
             
         try:
             self.is_playing_=self.status_q.get(False)
-            print(f'vid {self.location} playing status changed: {self.is_playing_}')
+            # print(f'vid {self.location} playing status changed: {self.is_playing_}')
         except queue.Empty:
             pass
 
@@ -143,7 +143,7 @@ class VideoRecorder:
 
     def startThread(self,q,frame_q,status_q):
         options={'-c:v':'libx264','-r':'30','-crf':'0'}
-        record=False
+        write=None
 
         while True:
             try:
@@ -151,21 +151,19 @@ class VideoRecorder:
                 
                 if msg:
                     writer=skvideo.io.FFmpegWriter(path,outputdict=options)
-                    record=True
                     status_q.put(True)
                 else:
-                    if record:
+                    if writer:
                         writer.close()
                         status_q.put(False)
-
-                    record=False
+                        write=None
 
             except queue.Empty:
                 pass
 
             try:
                 frame=frame_q.get(False)        
-                if record:
+                if writer:
                     writer.writeFrame(frame)
             except queue.Empty:
                 pass
