@@ -29,10 +29,11 @@ class DepthCamera(Texture):
         
         self.d_res=0.00025
         self.d_min=int(2/self.d_res)
-        self.d_max=int(3.5/self.d_res)
-        self.min_area=10000
+        self.d_max=int(4/self.d_res)
+        self.d_center=(self.d_min+self.d_max)//2
+        self.min_area=30000
         self.kernel=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(3,3))
-        self.d_trigger=int(3.5/self.d_res)
+        self.d_trigger=int(4/self.d_res)
         self.alpha=-255./(self.d_max-self.d_min)
         self.beta=255./(1-(float(self.d_min)/self.d_max))
         
@@ -92,15 +93,21 @@ class DepthCamera(Texture):
                 I=cv2.morphologyEx(I,cv2.MORPH_OPEN,self.kernel,iterations=3)
                 I=cv2.morphologyEx(I,cv2.MORPH_DILATE,self.kernel,iterations=2)
                 cntrs=extract_contours(I,self.min_area)
+                # frame=I*255
                 if len(cntrs):
                     
                     C=cv2.fillPoly(np.zeros_like(depth,dtype='u1'),cntrs,(255),cv2.LINE_AA).astype('bool')
                     mask=M&C
                     masked_depth=depth[mask]
-                    depth_frame=np.ones_like(depth,dtype='u2')*self.d_max
-                    depth_frame[mask]=masked_depth
+                    near_mask=mask & (depth<self.d_center)
+                    far_mask=mask & (depth>=self.d_center)
+                    frame[near_mask]=255*((depth[near_mask]-self.d_min)/(self.d_center-self.d_min))
+                    frame[far_mask]=255*(1-(depth[far_mask]-self.d_center)/(self.d_max-self.d_center))
+                    # depth_frame=np.ones_like(depth,dtype='u2')*self.v_max
+                    # depth_frame[mask]=masked_depth
                     # frame[mask]=255*(1-(depth[mask]-self.d_min)/(self.d_max-self.d_min))
-                    frame=cv2.convertScaleAbs(depth_frame,alpha=self.alpha,beta=self.beta)
+                    # frame=cv2.convertScaleAbs(depth_frame,alpha=self.alpha,beta=self.beta)
+                    
                     last_visible=self.is_visible_
                     self.is_visible_ = np.median(masked_depth) < self.d_trigger
                     if self.is_visible_ and (not last_visible):

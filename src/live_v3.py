@@ -75,13 +75,14 @@ fragment_shader="""
             else if (c2+c4+c6==0) {
                 fragColor=vec4(vec3(0.25*texture(bg,q).x/255),1.0);
             } else if (c2*c4>0) {
-                fragColor = vec4(vec3(0.,0.,1.2*c6*c5.z),1.0);
+                //fragColor = vec4(vec3(0.,0.,1.2*c6*c5.z),1.0);
+                fragColor = vec4(c6*vec3(0.3,0.4,1.2)*c5,1.0);
             } else if (c4*c6>0) {
                 fragColor = vec4(c1*c2,1.0);
             } else if (c6*c2>0) {
                 fragColor = vec4(c3*c4,1.0);
             } else {
-                fragColor = vec4(c1*c2+c3*c4+vec3(0.,0.,1.2*c6*c5.z),1.0);
+                fragColor = vec4(c1*c2+c3*c4+c6*vec3(0.3,0.4,1.2)*c5,1.0);
                 //fragColor = vec4(vec3(c2+c4+c6),1.0);
             }    
         }
@@ -165,7 +166,7 @@ class QuadFullscreen:
         
         self.recording_duration=10
         self.playback_duration=10
-        self.minimum_recording=7
+        self.minimum_recording=5
 
         self.last_visible=time.time()
         self.record_time=time.time()
@@ -201,8 +202,8 @@ class QuadFullscreen:
                 if not self.vid2.is_playing() and len(self.videos)>1:
                     self.vid2.play(f'videos/{np.random.choice(self.videos)}') 
 
-                if not self.vid4.is_playing() and len(self.videos)>10: 
-                    self.vid4.play(f'videos/{np.random.choice(self.videos[-10:])}') 
+                if not self.vid4.is_playing() and len(self.videos)>=10: 
+                    self.vid4.play(f'videos/{np.random.choice(self.videos[-10:-1])}') 
             
             if self.rec.is_recording():
                 if type(frame)!=type(None):

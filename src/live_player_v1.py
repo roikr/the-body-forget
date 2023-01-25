@@ -11,6 +11,7 @@ import numpy as np
 import time
 import os
 from DepthCamera import *
+import subprocess
 
 
 vertex_shader="""
@@ -29,13 +30,15 @@ fragment_shader="""
     #version 330
     out vec4 fragColor;
     uniform usampler2D tex0;
-    uniform bool rec;
+    //uniform bool rec;
     in vec2 uv0;
 
     void main() {
-        float c=texture(tex0,vec2(uv0.x,1.-uv0.y)).x;
+        float c=texture(tex0,vec2(1.-uv0.x,1.-uv0.y)).x/255.;
         //float c=texture(tex0,uv0).x;
-        fragColor=vec4(mix(vec3(c),vec3(c,0.,0.),float(rec)),1.0);
+        // fragColor=vec4(mix(vec3(c),vec3(c,0.,0.),float(rec)),1.0);
+        //fragColor=vec4(mix(vec3(c),vec3(c,0.,0.),float(rec)),1.0);
+        fragColor=vec4(vec3(0.2*c,0.3*c,c),1.0);
     }
 """
 
@@ -49,21 +52,26 @@ class QuadFullscreen:
         settings.WINDOW['class'] = 'moderngl_window.context.glfw.Window'
         settings.WINDOW['size'] = self.view_size
         settings.WINDOW['aspect_ratio'] = w/h
-        settings.WINDOW['fullscreen'] = True
-        settings.WINDOW['cursor'] = False
+        # settings.WINDOW['fullscreen'] = True
+        # settings.WINDOW['cursor'] = False
         self.wnd = moderngl_window.create_window_from_settings()
         self.ctx = self.wnd.ctx
         self.quad = geometry.quad_fs()
         self.prog = self.ctx.program(vertex_shader=vertex_shader,fragment_shader=fragment_shader)
         # bags=[f'data/{b}.bag' for b in ['20221225_193047','20230116_174627','20230116_190137','20230116_190429']]
         self.cam=DepthCamera(self.ctx,self.cam_size,1,0,self.prog,'tex0') #,path=bags[3])
-        self.prog['rec'].value=False
+        # self.prog['rec'].value=False
         
         self.counter=0
+        self.sounds=[f for f in os.listdir('sounds') if f.endswith('.wav')]
         
+
     def render(self, time_: float, frame_time: float):
-        self.cam.update()
-        self.prog['rec'].value=self.cam.is_recording()
+        is_visible=self.cam.is_visible()
+        self.cam.update(True)
+        if not is_visible and self.cam.is_visible():
+            subprocess.Popen(['aplay',f'sounds/{np.random.choice(self.sounds)}'])
+        # self.prog['rec'].value=self.cam.is_visible()
         self.ctx.clear()
         self.quad.render(self.prog)
 
