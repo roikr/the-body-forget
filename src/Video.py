@@ -24,9 +24,81 @@ class Texture:
 
     def load(self,I):
         self.tex.write(I.tobytes())
+
+
+class VideoCache(Texture):
+    def __init__(self,*args):
+        super().__init__(*args)
+        self.reset()
+        self.q=queue.Queue()
+        self.frame_q=queue.Queue()
+        self.is_loading_=False
+        
+        self.worker = threading.Thread(target=self.startThread,args=(self.q,self.frame_q,),daemon=True)
+        self.worker.start()
         
 
-class VideoTexture(Texture):
+    def startThread(self,q,frame_q,):
+        while True:
+            try:
+                video=q.get(False)
+                start=time.time()
+                frames=skvideo.io.vread(video) #,inputdict={'-c:v':'libx264'})
+                frame_q.put(frames)
+                print(f'{self.location} loading time: {time.time()-start:.2f}, video: {video}, shape: {frames.shape}')
+            except queue.Empty:
+                pass
+            time.sleep(0.02)
+        
+    def play(self,video):
+        if not self.is_loading_:
+            self.is_loading_=True
+            self.q.put(video)
+            print(f'{self.location} play {video}')
+
+    def reset(self):
+        self.load(np.zeros((*self.size,self.channels),dtype='u1'))
+        self.is_playing_=False
+        self.is_loading_=False
+
+    def stop(self):
+        if self.is_playing_:
+            self.reset()
+            
+
+    def update(self):
+        if not self.is_playing_:
+            try:
+                self.frames=self.frame_q.get(False)
+                # print(f'{self.location} start playing')
+                if self.is_loading_:
+                    self.is_playing_=True
+                    self.start=time.time()
+                    self.counter=-1
+                    self.is_loading_=False
+                
+            except queue.Empty:
+                pass
+
+        if self.is_playing_:
+            if 30.*(time.time()-self.start)>float(self.counter):
+                self.counter+=1
+
+                if self.counter<len(self.frames):
+                    if self.channels==3:
+                        self.load(self.frames[self.counter])
+                    else:
+                        self.load(self.frames[self.counter,:,:,0])
+                else:
+                    self.reset()
+            
+    def is_playing(self):
+        return self.is_playing_
+
+   
+        
+    
+class VideoStreamer(Texture):
     def __init__(self,*args,video=None):
         super().__init__(*args)
         
@@ -39,51 +111,63 @@ class VideoTexture(Texture):
         self.worker = threading.Thread(target=self.startThread,args=(self.q,self.frame_q,self.status_q,),daemon=True)
         self.worker.start()
         self.is_playing_=False
+        self.is_loading_=False
 
         if video:
-            self.play(video,True)
+            self.play(video)
 
-    def play(self,video,now):
-        # print(f'start play: {video}, now: {now}')
-        self.q.put((video,now))
+    def play(self,video):
+        if not self.is_loading_:
+            self.is_loading_=True
+            # print(f'start play: {video}, now: {now}')
+            self.q.put(video)
         
     def stop(self):
-        self.q.put((None,True))
+        if self.is_playing_:
+            self.q.put(None)
     
     def startThread(self,q,frame_q,status_q,):
         reader=None
-        next_video=None
-        immediately=False
+        play_video=False
+        stop_video=False
+        video=None
         while True:
+            
             # print(f'{self.location} {frame_q.qsize()}')
             try:
-                next_video,immediately=q.get(False)
+                video=q.get(False)
+                if video:
+                    play_video=True
+                else:
+                    stop_video=True
                 
             except queue.Empty:
                 pass
 
-            if immediately or (reader==None and next_video):
-                immediately = False
-
+            if play_video:
+                play_video=False
+                print(f'vid {self.location} start playing: {video}')
                 if reader!=None:
+                    frame_q.put(np.zeros((*self.size,self.channels),dtype='u1'))
                     reader.close()
-                    reader=None
-
-                if next_video:
-                    # print(f'vid {self.location} start playing: {next_video}')
-                    reader=skvideo.io.FFmpegReader(next_video) #,outputdict={'-c:v':'libx264'})
-                    status_q.put(True)
-                    if not self.repeat:
-                        next_video=None
-
-                    gen=reader.nextFrame()
                     
-                    start=time.time()
-                    counter=-1
+                    
+                reader=skvideo.io.FFmpegReader(video) #,outputdict={'-c:v':'libx264'})
+                status_q.put(True)
+    
+                gen=reader.nextFrame()
+                    
+                start=time.time()
+                counter=-1
 
-                else:
+            if stop_video:
+                print(f'vid {self.location} stop playing')
+                stop_video=False
+                if reader!=None:
                     frame_q.put(np.zeros((*self.size,self.channels),dtype='u1'))
                     status_q.put(False)
+                    reader.close()
+                    reader=None
 
             if reader:
                 if 30.*(time.time()-start)>float(counter):
@@ -97,12 +181,18 @@ class VideoTexture(Texture):
                         
                     except StopIteration:
                         frame_q.put(np.zeros((*self.size,self.channels),dtype='u1'))
+                        status_q.put(False)
                         reader.close()
                         reader=None
-                        status_q.put(False)
-            time.sleep(0.02)
+                        print(f'vid {self.location} done playing, repeat: {self.repeat}')
+
+                        if self.repeat:
+                            play_video=True
+                        
+
+            time.sleep(0.01)
             
-            
+        
 
     def update(self):
        
@@ -121,6 +211,7 @@ class VideoTexture(Texture):
             
         try:
             self.is_playing_=self.status_q.get(False)
+            self.is_loading_ = False
             # print(f'vid {self.location} playing status changed: {self.is_playing_}')
         except queue.Empty:
             pass
@@ -143,7 +234,7 @@ class VideoRecorder:
 
     def startThread(self,q,frame_q,status_q):
         options={'-c:v':'libx264','-r':'30','-crf':'0'}
-        write=None
+        writer=None
 
         while True:
             try:
@@ -156,7 +247,7 @@ class VideoRecorder:
                     if writer:
                         writer.close()
                         status_q.put(False)
-                        write=None
+                        writer=None
 
             except queue.Empty:
                 pass
@@ -182,7 +273,7 @@ class VideoRecorder:
     def update(self,frame=None):
         try:
             self.is_recording_=self.status_q.get(False)
-            print(f'recording status changed: {self.is_recording_}')
+            # print(f'recording status changed: {self.is_recording_}')
         
         except queue.Empty:
             pass

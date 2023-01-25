@@ -34,7 +34,6 @@ fragment_shader="""
     uniform usampler2D tex5;
     uniform usampler2D tex6;
     uniform ivec2 view_size;
-    uniform ivec2 tex_size;
     uniform ivec2 cam_size;
     uniform bool rec;
     in vec2 uv0;
@@ -52,13 +51,13 @@ fragment_shader="""
         
 
         float c0=texture(tex0,cam_pos).x/255.;
-        vec3 c1=texture(tex1, vec2(p)/tex_size).xyz/255.*1.2;
+        vec3 c1=texture(tex1, q).xyz/255.*1.2;
         
         float c2=texture(tex2,cam_pos).x/255.;
-        vec3 c3=texture(tex3, vec2(p)/tex_size).xyz/255.*1.2;
+        vec3 c3=texture(tex3, q).xyz/255.*1.2;
         
         float c4=texture(tex4,cam_pos).x/255.;
-        vec3 c5=texture(tex5, vec2(p)/tex_size).xyz/255.*1.2;
+        vec3 c5=texture(tex5, q).xyz/255.*1.2;
         
         float c6=texture(tex6,cam_pos).x/255.;
         
@@ -138,12 +137,12 @@ class QuadFullscreen:
         self.ctx = self.wnd.ctx
         self.quad = geometry.quad_fs()
         self.prog = self.ctx.program(vertex_shader=vertex_shader,fragment_shader=fragment_shader)
-        self.vid1=VideoTexture(self.ctx,self.tex_size,3,1,self.prog,'tex1',video='textures/21.mp4')
-        self.vid2=VideoTexture(self.ctx,self.cam_size,1,2,self.prog,'tex2')
-        self.vid3=VideoTexture(self.ctx,self.tex_size,3,3,self.prog,'tex3',video='textures/22.mp4')
-        self.vid4=VideoTexture(self.ctx,self.cam_size,1,4,self.prog,'tex4')
-        self.vid5=VideoTexture(self.ctx,self.tex_size,3,5,self.prog,'tex5',video='textures/20.mp4')
-        self.vid6=VideoTexture(self.ctx,self.cam_size,1,6,self.prog,'tex6')
+        self.vid1=VideoStreamer(self.ctx,self.tex_size,3,1,self.prog,'tex1',video='textures/21.mp4')
+        self.vid2=VideoStreamer(self.ctx,self.cam_size,1,2,self.prog,'tex2')
+        self.vid3=VideoStreamer(self.ctx,self.tex_size,3,3,self.prog,'tex3',video='textures/22.mp4')
+        self.vid4=VideoStreamer(self.ctx,self.cam_size,1,4,self.prog,'tex4')
+        self.vid5=VideoStreamer(self.ctx,self.tex_size,3,5,self.prog,'tex5',video='textures/20.mp4')
+        self.vid6=VideoStreamer(self.ctx,self.cam_size,1,6,self.prog,'tex6')
         bg=cv2.imread('textures/bg.png',cv2.IMREAD_GRAYSCALE)
         bg_size=bg.shape[::-1]
         self.bg=Texture(self.ctx,bg_size,1,7,self.prog,'bg')
@@ -161,7 +160,6 @@ class QuadFullscreen:
         self.rec=VideoRecorder(self.cam_size)
        
         self.prog['view_size'].value=self.view_size
-        self.prog['tex_size'].value=self.tex_size
         self.prog['cam_size'].value=self.cam_size
         self.prog['rec'].value=False
         
@@ -173,60 +171,63 @@ class QuadFullscreen:
         self.record_time=time.time()
         self.play_time=time.time()
         self.recording=False
-        
+
     def update(self):
         [v.update() for v in self.tex_players]
         [v.update() for v in self.vid_players]
 
-        if self.cam.is_ready() and not self.rec.is_recording() and len(self.videos):
-            # for v in self.vid_players:
-            #     if not v.is_playing():
-            #         v.play(f'videos/{np.random.choice(self.videos)}',False) 
-            if not self.vid2.is_playing():
-                self.vid2.play(f'videos/{np.random.choice(self.videos)}',False) 
-
-            if not self.vid4.is_playing():
-                self.vid4.play(f'videos/{np.random.choice(self.videos)}',False) 
-                
-
-        is_visible=self.cam.is_visible() 
         
-        frame=self.cam.update()
+        frame=self.cam.update((time.time()-self.play_time)>self.playback_duration)
 
         if self.cam.is_ready():
+
             if self.cam.is_visible():
+
                 self.last_visible = time.time()
-                if not self.recording and not self.rec.is_recording() and (time.time()-self.play_time>self.playback_duration):
+                if not self.recording and not self.rec.is_recording() and ((time.time()-self.play_time)>self.playback_duration):
                     self.current_video=f'{time.strftime("%Y%m%d_%H%M%S")}.mp4'
                     self.record_time=time.time()
-                    print(f'start recording: {self.current_video}')
+                    print(f'record: {self.current_video}')
                     self.rec.start(f'videos/{self.current_video}')
                     self.recording=True
                     self.vid2.stop()
                     self.vid4.stop()
                     self.vid6.stop()
                     subprocess.Popen(['aplay',f'sounds/{np.random.choice(self.sounds)}'])
+                    self.counter=0
 
-            if self.recording and ((time.time()-self.last_visible>0.5) or (time.time()-self.record_time>self.recording_duration)):
-                print(f'stop recording: {self.current_video}')
-                self.rec.stop()
-                self.recording=False
+            
+            if not self.recording and not self.rec.is_recording() and len(self.videos):
+                if not self.vid2.is_playing() and len(self.videos)>1:
+                    self.vid2.play(f'videos/{np.random.choice(self.videos)}') 
+
+                if not self.vid4.is_playing() and len(self.videos)>10: 
+                    self.vid4.play(f'videos/{np.random.choice(self.videos[-10:])}') 
+            
+            if self.rec.is_recording():
+                if type(frame)!=type(None):
+                    self.counter+=1
+                    # print(f'fps: {self.counter/(time.time()-self.record_time):.1f}')
+                    self.rec.add_frame(frame)
+
+                if ((time.time()-self.last_visible)>0.5) or ((time.time()-self.record_time)>self.recording_duration):
+                    print(f'stop recording: {self.current_video}')
+                    self.rec.stop()
+                    self.recording=False
                 
-            if self.rec.is_recording() and self.recording and type(frame)!=type(None):
-                self.rec.add_frame(frame)
+            
+            recording=self.rec.is_recording()
+            self.rec.update()
+            if recording and not self.rec.is_recording():
+                if (time.time()-self.record_time)>self.minimum_recording:
+                    print(f'append: {self.current_video}')
+                    self.vid6.play(f'videos/{self.current_video}')
+                    self.play_time=time.time()
+                    self.videos.append(self.current_video)
 
-        recording=self.rec.is_recording()
-        self.rec.update()
-        if recording and not self.rec.is_recording():
-            if (time.time()-self.record_time)>self.minimum_recording:
-                print(f'append: {self.current_video}')
-                self.vid6.play(f'videos/{self.current_video}',True)
-                self.play_time=time.time()
-                self.videos.append(self.current_video)
-
-            else:
-                print(f'remove: {self.current_video}')
-                os.remove(f'videos/{self.current_video}')
+                else:
+                    print(f'remove: {self.current_video}')
+                    os.remove(f'videos/{self.current_video}')
 
         
     def render(self, time_: float, frame_time: float):
@@ -252,6 +253,7 @@ class QuadFullscreen:
 
 if __name__ == '__main__':
     app=QuadFullscreen((1920,1200))
+    # app=QuadFullscreen((1920,1200))
     # app=QuadFullscreen((1280,800))
     # app=QuadFullscreen((1024,768))
     app.run()
