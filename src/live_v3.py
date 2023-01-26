@@ -253,6 +253,9 @@ class QuadFullscreen:
 
 
 if __name__ == '__main__':
+    while len(rs.context().query_devices()) == 0:
+        print('please reconnect the camera')
+        time.sleep(5)
     app=QuadFullscreen((1920,1200))
     # app=QuadFullscreen((1920,1200))
     # app=QuadFullscreen((1280,800))
