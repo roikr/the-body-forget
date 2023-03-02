@@ -40,6 +40,9 @@ class DepthCamera(Texture):
         self.is_visible_=False
         self.last_capture=False
         self.load(np.zeros((h,w),dtype='u1'))
+        self.crop_mask=np.zeros((h,w),dtype='bool')
+        self.crop_mask[100:h,80:w-80]=True
+        
         
                
     def is_ready(self):
@@ -88,7 +91,7 @@ class DepthCamera(Texture):
                 # print(f'depth fps: {self.capture_counter/(time.time()-self.capture_time):.1f}')
 
                 bg_mask=np.abs(self.mean_depth-np.clip(depth,0,1<<15-1).astype('i2'))>150
-                M=(conf>=128) & (bg_mask | (~bg_mask & self.low_conf_mask)) & (depth>self.d_min) & (depth<self.d_max)
+                M=self.crop_mask & (conf>=128) & (bg_mask | (~bg_mask & self.low_conf_mask)) & (depth>self.d_min) & (depth<self.d_max)
                 I=M.astype('u1')
                 I=cv2.morphologyEx(I,cv2.MORPH_OPEN,self.kernel,iterations=3)
                 I=cv2.morphologyEx(I,cv2.MORPH_DILATE,self.kernel,iterations=2)
@@ -117,7 +120,7 @@ class DepthCamera(Texture):
                     self.is_visible_=False
 
             if not self.is_ready():
-                M=(conf>=128) & (depth>self.d_min) & (depth<self.d_max)
+                M=self.crop_mask & (conf>=128) & (depth>self.d_min) & (depth<self.d_max)
                 frame[M]=255*(1-(depth[M]*self.d_res-self.d_min)/(self.d_max-self.d_min))
             
             self.load(frame)
